@@ -16,6 +16,7 @@ type pinger interface {
 
 type Deps struct {
 	DB                pinger
+	Queries           querier // *pgxpool.Pool; enables the tenders endpoints
 	Auth              *auth.Service
 	WebOrigin         string
 	Logger            *slog.Logger
@@ -30,6 +31,10 @@ func New(d Deps) http.Handler {
 	if d.Auth != nil {
 		h := &authHandlers{svc: d.Auth, cookie: NewCookieConfig(d.Production), logger: d.Logger, trustForwarded: d.TrustForwardedFor, now: time.Now}
 		h.register(mux)
+		if d.Queries != nil {
+			t := &tendersHandlers{db: d.Queries, auth: h, logger: d.Logger, now: time.Now}
+			t.register(mux)
+		}
 	}
 	return middleware.Chain(cors(d.WebOrigin, mux),
 		middleware.RequestID(), middleware.AccessLog(d.Logger), middleware.Recover(d.Logger), sameOrigin(d.WebOrigin))

@@ -51,7 +51,7 @@ func main() {
 	server := &http.Server{
 		Addr: cfg.APIAddr,
 		Handler: httpapi.New(httpapi.Deps{
-			DB: pool, Auth: authService, WebOrigin: cfg.WebOrigin, Logger: logger,
+			DB: pool, Queries: pool, Auth: authService, WebOrigin: cfg.WebOrigin, Logger: logger,
 			Production: cfg.IsProduction(), TrustForwardedFor: cfg.TrustForwardedFor,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
