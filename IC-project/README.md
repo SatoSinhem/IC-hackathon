@@ -12,24 +12,45 @@
 - `migrate` CLI из golang-migrate для SQL-миграций
 
 ## Запуск
-1. В корне: `cp .env.example .env`
-2. В `apps/web`: `cp .env.local.example .env.local`
-3. Запусти PostgreSQL: `docker compose up -d db`
-4. Примени миграцию:
-   ```bash
-   set -a; source .env; set +a
-   migrate -path apps/api/migrations -database "$DATABASE_URL" up
-   ```
-5. В первом терминале запусти API:
-   ```bash
-   set -a; source .env; set +a
-cd apps/api && go mod tidy && go run ./cmd/api
-   ```
-6. Во втором терминале запусти frontend:
-   ```bash
-   cd apps/web && npm install && npm run dev
-   ```
-7. Открой `http://localhost:3000`. API: `http://localhost:8080/api/v1/health` и `/api/v1/ready`.
+Нужны: Docker Desktop, Go, Node.js. Каждый шаг ниже выполняется в своём окне терминала, где указано.
+
+### 1. Файлы окружения (один раз)
+```powershell
+Copy-Item .env.example .env
+Copy-Item apps\web\.env.local.example apps\web\.env.local
+Copy-Item apps\api\.env.example apps\api\.env
+```
+В корневом `.env` задай `POSTGRES_PASSWORD`. Без него `docker compose` не запустится.
+
+### 2. База данных
+```powershell
+docker compose up -d db
+```
+
+### 3. Переменные для API и команд (в каждом новом окне заново)
+`go run` сам `.env` не читает, поэтому переменную нужно задать в окне:
+```powershell
+$env:DATABASE_URL="postgres://ic_tender:ПАРОЛЬ@localhost:5432/ic_tender?sslmode=disable"
+```
+
+### 4. Миграции (один раз, версия схемы должна стать 3)
+Если установлена утилита `migrate`:
+```powershell
+migrate -path apps\api\migrations -database "$env:DATABASE_URL" up
+```
+Если её нет, можно запустить через Docker (в адресе вместо `localhost` нужен `host.docker.internal`):
+```powershell
+docker run --rm -v "${PWD}\apps\api\migrations:/migrations" migrate/migrate -path=/migrations -database "postgres://ic_tender:ПАРОЛЬ@host.docker.internal:5432/ic_tender?sslmode=disable" up
+```
+Проверка версии:
+```powershell
+docker exec -it ic-tender-db psql -U ic_tender -d ic_tender -c "select * from schema_migrations"
+```
+
+### 5. Первый администратор (один раз, папка apps\api)
+```powershell
+cd apps\api
+go run ./cmd/createuser
 
 ## Переменные окружения API
 - `DATABASE_URL` — обязательна, значения по умолчанию нет.
@@ -56,19 +77,9 @@ cd apps/api && go mod tidy && go run ./cmd/api
 - Разделы и права описаны одним списком в `src/lib/roles.ts`. Разделы без API показывают «Не подключено» и перечень планируемого, без вымышленных данных и неработающих кнопок.
 - Юнит-тесты: `npm test` (Vitest). Тесты интерфейса: `npm run test:e2e` (Playwright). Им нужны запущенные API и фронтенд на одной БД и пять пользователей `admin@e2e.test`, `junior@e2e.test`, `finance@e2e.test` (с разрешением `VIEW_FINANCE`), `partner@e2e.test` (SUBCONTRACTOR), `newbie@e2e.test` (`must_change_password = true`; остальным флаг снят) с общим паролем в `E2E_PASSWORD`. Адрес фронтенда — `E2E_BASE_URL`. Тесты меняют пароль `newbie`, поэтому используйте отдельную одноразовую БД. Браузер: `npx playwright install chromium`.
 
-## Важно
-- Победителя выбирает человек с нужными правами.
-- Цену тендера задаёт IC Group; субподрядчик не предлагает встречную цену.
-- Единственный автоматический триггер изменения суммы открытого тендера — приближение дедлайна.
-- После выбора победителя автоматическое изменение суммы прекращается.
-- Внутренняя маржа, рейтинги и штрафные начисления не показываются субподрядчику.
-- Клиентских аккаунтов нет.
-- В кабинете субподрядчика предусмотрены «Доступные тендеры», «Мои отклики», «Мои объекты», «Выполненные объекты».
-- Истёкший контракт не считается завершённым без подтверждения администратора.
-- Не используй демонстрационные пароли в production.
-
 См. `docs/implementation-plan.md` для следующего плана работ.
 
 ## admin@example.com password: 12 one - senior admin
 ## junior@example.com password: zxcqwerty123 - junior admin
 ## sub@example.com password: 123123123123 - our partner
+
